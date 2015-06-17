@@ -152,7 +152,8 @@ function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
   problem = minimize(gamma1,cstr);
   solve!(problem, SCSSolver(verbose=false))
 
-  return U, problem 
+  # TODO: second argument should be expected cost. 'expected_cost' is addition_atom, hence has no value.
+  return U.value, 0.0, problem 
 end
 
 function MPC_look_3(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
