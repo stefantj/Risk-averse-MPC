@@ -120,8 +120,8 @@ function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
   expected_cost = quad_form(U,R_c);
   
   # Move these out at some point.
-  r0 = 0.25;
-  max_risk = 0.25;
+  r0 = 50.25;
+  max_risk = 50.25;
   alpha = 0.25;
 
   r1 = [Variable() for i=1:m]
@@ -152,8 +152,7 @@ function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
   problem = minimize(gamma1,cstr);
   solve!(problem, SCSSolver(verbose=false))
 
-  # TODO: second argument should be expected cost. 'expected_cost' is addition_atom, hence has no value.
-  return U.value, 0.0, problem 
+  return U.value, expected_cost, problem 
 end
 
 function MPC_look_3(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
@@ -240,7 +239,10 @@ function MPC_look_3(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
   problem = minimize(gamma1,cstr);
   solve!(problem, SCSSolver(verbose=false))
 
-  return U, expected_cost, problem 
+  #This isn't quite going to work, since expected_cost is an expression
+  # need to re-evaluate once solved.
+  #return U.value, expected_cost, problem.status, problem.optval 
+  return U.value, expected_cost, problem 
 end
 
 
@@ -391,8 +393,8 @@ function MPC_look_5(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
   expected_cost = quad_form(U,R_c);
   
   # Move these out at some point.
-  r0 = 0.25;
-  max_risk = 0.25;
+  r0 = 50;
+  max_risk = 50;
   alpha = 0.25;
 
   r1 = [Variable() for i=1:m]
@@ -444,7 +446,7 @@ function MPC_look_5(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
   problem = minimize(gamma1,cstr);
   solve!(problem, SCSSolver(verbose=false))
 
-  return U, problem 
+  return U.value, expected_cost, problem 
 end
 
 #function that tests MPC_basic_3()

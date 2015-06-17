@@ -10,17 +10,18 @@ include("MPC_control.jl");
 # iteration, feasible, rand_ind, X(1), ... , X(n_state), u(1), ... ,u(n_input), r, c_i, gamma_i, E(c)
 function write_data(filename, iter, feas, realization, X, U, risk, cost, gamma, expect_cost)
   file_handle = open(filename, "a");
-  write(file_handle, iter, ", ", feas, ", ", realization, ", ");
+  write(file_handle, string(iter, ", ", feas, ", ", realization, ", "));
   for i = 1:length(X)
-    write(file_handle, X[i],", ");
+    write(file_handle, string(X[i],", "));
   end
   for i = 1:length(U)
-    write(file_handle, U[i], ", ");
+    write(file_handle, string(U[i], ", "));
   end
-  write(file_handle, risk, ", ", cost, ", ", gamma, ", ", expect_cost, "\n");
+  write(file_handle, string(risk, ", ", cost, ", ", gamma, ", ", expect_cost, "\n"));
+  close(file_handle);
 end
 
-function MPC_sim()
+@debug function MPC_sim()
   # Start by assuming that we're in the 2d case and use the example from the paper
   # Simulation length
   num_trials = 2;
@@ -76,7 +77,7 @@ function MPC_sim()
   # ind = find(abs(sum(ext,2)-1)<1e-3);
   # xi_pts = ext(ind,:)
   # xi=xi_pts(1,:);
-  xi_pts = 0.25*ones(80,m);
+  xi_pts = 0.25*ones(40,m);
 
   # Dynamics:
   A_scen = fill(eye(n_state), m);
@@ -109,7 +110,7 @@ function MPC_sim()
   curr_cost_obj = X_init'*Q_c*X_init;
 
   # State trackers
-  X_traj = fill(zeros(n_state,1), num_trials, max_iters);
+  X_traj = fill(X_init, num_trials, max_iters);
   r_traj = fill(0.0, num_trials, max_iters);
   X_total = fill(X_init, num_trials);
   r_total = fill(r_k, num_trials);
@@ -142,9 +143,9 @@ function MPC_sim()
     for iter = 1:(max_iters-1)
       println("Trial ", trials, ", iterate ", iter);
       # For now, only bother with N = 2
-      println(size(X_traj))
-      println("$trials, $iter")
-      ui, Ec, pr = MPC_look_2(A_scen, B_scen, xi_pts, p, R_c, Q_c, X_traj[trials,iter], Q_offline)
+
+      @time ui, Ec,pr = MPC_look_2(A_scen, B_scen, xi_pts, p, R_c, Q_c, X_traj[trials,iter], Q_offline)
+      
       feas_status = 0;
       if(pr.status == :Infeasible)
           # Print infeasible
@@ -164,11 +165,11 @@ function MPC_sim()
           cost_i = X_traj[trials,iter+1]'*Q_c*X_traj[trials,iter+1] + ui'*R_c*ui;
 
 	  # Print data to file
-	  write_data("data.csv", iter, feas_status, r_i, X_traj[trials,iter+1], ui,0, cost_i, pr.optval, Ec); 
-
+	  write_data("data.csv", iter, feas_status, r_i, X_traj[trials,iter], ui,0, cost_i[1], pr.optval, 0); 
+	 
 	  if(norm(X_traj[trials,iter+1]) < 1e-4)
-             println("Found the origin! (iter=",iter,")");
-	     #continue
+             println("Found the origin! (norm = ", norm(X_traj[trials,iter+1]), ")");
+	     continue
           end
       end
     end
