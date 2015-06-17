@@ -43,7 +43,7 @@ function MPC_fn_uncstr(A_scen, B_scen, xi_pts, p, R_c, Q_c,X_init,alpha)
    n_i = size(B_scen[1],2);
    m   = size(B_scen,1);
    
-  \alpha 
+#  \alpha 
    #### Optimization Variables ####
    
    Q     = fill(Variable(n_s,n_s),m);
