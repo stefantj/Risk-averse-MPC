@@ -18,7 +18,9 @@ The program will output a csv file with fields
 | ------------------------------ | --------------------------------------------- | --------------------- |
 | iteration, feasible, rand_ind, | X(1), ... , X(n_state), u(1), ... ,u(n_input),| r, c_i, gamma_i, E(c) |
 
-| First Header  | Second Header |
-| ------------- | ------------- |
-| Content Cell  | Content Cell  |
-| Content Cell  | Content Cell  |
+This data can be easily interpreted by running the plotter.m file in Matlab.
+
+# Verification of code
+
+There (will be) a suite of tests to verify that the code is correct.
+
