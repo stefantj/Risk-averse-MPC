@@ -13,6 +13,7 @@ To run the simulation, run julia in the directory with these files and run
 ```
 
 The program will output a csv file with fields
+
 |  Status data                   | State/action data                             |  Performance data     |
 | ------------------------------ | --------------------------------------------- | --------------------- |
 | iteration, feasible, rand_ind, | X(1), ... , X(n_state), u(1), ... ,u(n_input),| r, c_i, gamma_i, E(c) |
