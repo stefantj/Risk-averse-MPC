@@ -25,9 +25,8 @@ This data can be easily interpreted by running the plotter.m file in Matlab.
 There (will be) a suite of tests to verify that the code is correct.
 
 # ToDos
-1. Highlight uncertain portions of the code
-2. Write a test suite
+1. Write a test suite
 	- Verify each constraint (positive definiteness etc)
-3. AFTER everything else clears, extend to constrained case
-4. AFTER everything else clears, extend to robust case
+2. AFTER everything else clears, extend to constrained case
+3. AFTER everything else clears, extend to robust case
 
