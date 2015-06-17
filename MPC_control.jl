@@ -1,20 +1,25 @@
-using Convex
-using SCS
-using Debug
-
-# This file has functions for executing risk-averse MPC efficiently
-#
-# MPC_test	Tests control problem with the MPC functions
+# MPC_control.jl
 # 
+# Created by Stefan Jorgensen for AA203
+# June 6, 2015
+#
+# This file has functions for executing risk-averse MPC efficiently
+# Based on the algorithm presented in "A Unifying Framework for Time-
+# Consistent, Risk-Averse Model Predictive Control: Theory and Algorithms"
+# Yin-Lam Chow, Marco Pavone.
+#
+# MPC_offline	Pre-solves terminal constraints as suggested in paper
 # MPC_look_2	Look-ahead of 2
+#
+# These functions need to be rewritten before use:
 # MPC_look_3	Look-ahead of 3
 # MPC_look_4	Look-ahead of 4
 # MPC_look_5	Look-ahead of 5
-# 
-# MPC_offline	Pre-solves terminal constraints as suggested in paper
-#
-# 
+#  
 
+using Convex
+using SCS
+#using Debug
 
 # Function that computs Q offline
 function MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c)
@@ -31,19 +36,32 @@ function MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c)
 
   # Useful constants that are used a lot
   R_inv    = inv(R_c);
-  R_c_sqrt   = sqrtm(R_c);
-  Q_c_sqrt   = sqrtm(Q_c);
+  R_c_sqrt = sqrtm(R_c);
+  Q_c_sqrt = sqrtm(Q_c);
+  tol      = 1e-5; 
+ 
+  #######################
+  # Problem constraints #
+  #######################
 
-  # Problem constraints
+  # Stability constraint
+  #  note: using the LMI from the published paper versus the sample code
+  #
+  # [Q    0      0  -0.5(A_scen*G + B_scen*Y 
+  #  *  R_inv    0            -Y
+  #  *    *      I        -Q_sqrt*G
+  #  *    *      *       -Q + G + G' ]
+  #
+  # IMPORTANT NOTE: 0.5 in the [1,4] block represents sigma_sqrt.
+  #  in the expectations case with m chosen as it is, this becomes 
+  #  quite simple. TODO: Generalize this.
 
   # Q > 0
-  cstr = Q[1] > 0.0000001*eye(n_s);
+  cstr = [Q[1] - tol*eye(n_s) == Semidefinite(n_s)];
   for i = 2:m
-     cstr+= Q[i] > 0.000000001*eye(n_s);
+     cstr+= [Q[i] - tol*eye(n_s) == Semidefinite(n_s)];
   end
 
-  # Optimality constraint
-  #  note: using the LMI from the published paper versus the sample code
   for i = 1:m
       Q_diag = hvcat((2,2),Q[i],zeros(n_s,n_s),zeros(n_s,n_s),Q[i]);
       for j = 3:m
@@ -67,13 +85,16 @@ function MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c)
       b34 = -Q_c_sqrt*G[i];
       b44 = -Q[i] + G[i] + G[i]';
 
-      cstr+= [hvcat((4,4,4,4), Q_diag, b12, b13, b14,
-                           b12', b22, b23, b24,
-			   b13', b23', b33, b34,
-			   b14', b24', b34', b44) >= 0];
+      lmi_nrows = size(Q_diag,2) + size(b12,2) + size(b13,2) + size(b14,2);
+      lmi = hvcat((4,4,4,4), Q_diag, b12, b13, b14,
+                               b12', b22, b23, b24,
+	                       b13', b23', b33, b34,
+			       b14', b24', b34', b44)i;
+      lmi = lmi - tol*eye(lmi_nrows);
+      cstr += lmi == Semidefinite(lmi_nrows);
   end
 
-  # Time to solve the problem!
+  # Time to solve the offline problem!
   
   objective = -logdet(Q[1]);
   for i = 2:m
@@ -85,6 +106,24 @@ function MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c)
   return Q, problem
 end
 
+
+# MPC_look_2
+# This function solves the MPC problem with lookahead 2
+#
+# INPUTS:
+#  A_scen,  B_scen: array of possible system matrices
+#  xi_pts: I believe these are vertices of the risk polytope
+#  p:      risk polytope
+#  R_c:    Control cost matrix
+#  Q_c:    State cost matrix
+#  X_init: Starting point
+#  Q: 	  stability matrix computed offline
+# 
+# OUTPUTS:
+# U:   Control action
+# E_c: Expected cost TODO: Implement this
+# pr:  Convex problem instance
+#
 function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
 
   # Infer problem size
@@ -104,6 +143,9 @@ function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
   gamma1 = Variable();
   gamma2 = [Variable() for i=1:m,j=1:m];
 
+  # Tolerance for positive definite-ness
+  tol = 1e-5;
+
   # Problem constraints
   cstr = []
   # System dynamics
@@ -112,14 +154,16 @@ function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
     for i2 = 1:m
       cstr += X2[i1,i2] == A_scen[i2]*X1[i1] + B_scen[i2]*U1[i1];
       # Final action constraint (a byproduct of using epigraph to minimize)
-      cstr += hvcat((2,2),gamma2[i1,i2],X2[i1,i2]',X2[i1,i2],Q[i2]) >= 0
+      cstr += [hvcat((2,2),gamma2[i1,i2],X2[i1,i2]',X2[i1,i2],Q[i2])-tol*eye(1+n_s) == Semidefinite(1+n_s)]
     end
   end
 
-  # Cost epigraph constraints 
+  # Cost epigraph constraints TODO: Verify that these are correct.
   expected_cost = quad_form(U,R_c);
   
-  # Move these out at some point.
+  # TODO: Move these out at some point
+  # Of all the parts of the code, I am least confident in 
+  # these three lines.
   r0 = 50.25;
   max_risk = 50.25;
   alpha = 0.25;
@@ -128,6 +172,7 @@ function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
 
   MS = 0;  
 
+  # Compute costs... very tediously.
   for i1 = 1:m
     # Cost of first action
     c_ij = quad_form(X1[i1],Q_c) + quad_form(U1[i1],R_c);
@@ -136,8 +181,8 @@ function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
       c_ij += gamma2[i1,i2];
       expected_cost += c_ij*p[i1]*p[i2];
 
-      # Condition 2 - check Q??
-      cstr += hvcat((2,2),gamma2[i1,i2], X2[i1,i2]',X2[i1,i2],Q[i2]) >= 0;
+      # Condition 2 - check Q?? redundant with line above.
+#      cstr += hvcat((2,2),gamma2[i1,i2], X2[i1,i2]',X2[i1,i2],Q[i2])  0;
       MS2 = p[i2]*max(0,-r1[i1] + gamma2[i1,i2]);
     end
     MS2 = r1[i1] + MS2/alpha;
@@ -154,6 +199,11 @@ function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
 
   return U.value, expected_cost, problem 
 end
+
+
+
+
+############################# IGNORE THESE FOR NOW ###############################################
 
 function MPC_look_3(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
 
@@ -448,78 +498,3 @@ function MPC_look_5(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
 
   return U.value, expected_cost, problem 
 end
-
-#function that tests MPC_basic_3()
-function MPC_run_3(n,m)
-
-  n_s =n;
-  n_i =n;
-  xi_pts = 0.25*ones(80,m);
-  p = 1/m*ones(1,m);
-  R_c = 0.0001*eye(n_i,n_i);
-  Q_c = 0.0001*eye(n_s,n_s);
-
-  A_scen = fill(eye(n_s),m)
-  B_scen = fill(eye(n_s),m)
-  X_init = ones(n_s,1)
-
-  R_inv    = inv(R_c);
-  Q_c_sqrt   = sqrtm(Q_c);
-
-  Q,toffline = @timed MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c)
-
-  U, tonline = @timed MPC_look_3(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init,Q)
-
-  println(n,", ",toffline,", ",tonline)
-end
-
-
-#function that tests MPC_basic_3()
-function MPC_run_N()
-
-  m = 4;
-  n_s =5;
-  n_i =5;
-  xi_pts = 0.25*ones(80,m);
-  p = 1/m*ones(1,m);
-  R_c = 0.0001*eye(n_i,n_i);
-  Q_c = 0.0001*eye(n_s,n_s);
-
-  A_scen = fill(eye(n_s),m)
-  B_scen = fill(eye(n_s),m)
-  X_init = ones(n_s,1)
-
-  R_inv    = inv(R_c);
-  Q_c_sqrt   = sqrtm(Q_c);
-
-  #Run offline code
-  println("Setting up");
-  Q,toffline = @timed MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c)
-  println("Running tests for N=2:5");
-  U, t2 = @timed MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init,Q)
-  println("2 ",t2)
-  U, t3 = @timed MPC_look_3(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init,Q)
-  println("3 ",t3)
-  U, t4 = @timed MPC_look_4(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init,Q)
-  println("4 ",t4)
-  U, t5 = @timed MPC_look_5(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init,Q)
-  println("5 ",t5)
-
-  println("Running tests for N=2:5");
-  U, t2 = @timed MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init,Q)
-  println("2 ",t2)
-  U, t3 = @timed MPC_look_3(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init,Q)
-  println("3 ",t3)
-  U, t4 = @timed MPC_look_4(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init,Q)
-  println("4 ",t4)
-  U, t5 = @timed MPC_look_5(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init,Q)
-  println("5 ",t5)
-
-end
-
-
-#function that tests runtime
-function MPC_runtime()
-    Q,toffline = @timed MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c)
-end
-

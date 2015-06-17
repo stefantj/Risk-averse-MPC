@@ -1,10 +1,13 @@
+# MPC_sim.jl
+#
 # This file contains functions for testing risk-averse MPC
+# Created by Stefan Jorgensen for AA203
+# June 6, 2015
+#
 
-# Functions for control
 include("MPC_control.jl");
+using Debug
 
-
-#This function writes given data to file, in order.
 # Store data in csv:
 # [ Status                     ] [ State/action                               ] [ Performance         ]
 # iteration, feasible, rand_ind, X(1), ... , X(n_state), u(1), ... ,u(n_input), r, c_i, gamma_i, E(c)
@@ -21,13 +24,16 @@ function write_data(filename, iter, feas, realization, X, U, risk, cost, gamma, 
   close(file_handle);
 end
 
+
+
+# MPC_sim() is a simple way to run the example from 
+# the paper by Chow, Pavone
+# 
 @debug function MPC_sim()
   # Start by assuming that we're in the 2d case and use the example from the paper
   # Simulation length
   num_trials = 2;
-  max_iters = 50;  # 50*6 = 300 minutes = 5 hours for N = 5
-
-  println("Preparing ", num_trials, " simulations with ", max_iters, " iterations each. This might take up to ", num_trials*max_iters/10, " hours to run");
+  max_iters = 50; 
 
   # Define the system:
   m = 4;
@@ -40,15 +46,16 @@ end
   R_c = 0.0001*eye(n_input)
   Q_c = 0.25*eye(n_state);
 
-  # The sample way of generating random outcomes doesn't really make sense to me
+  # The example way of generating random outcomes doesn't really make sense to me
   # I'm ignoring it and doing what is intuitive.
-  
   p_cdf = cumsum(p');
   r_tmp = rand(max_iters*num_trials,1);
   rand_indices = zeros(max_iters*num_trials,1);
   for iter = 1:m
     rand_indices += (r_tmp .< p_cdf[iter])
   end
+
+  #TODO: This segment is a mess.
 
   # Risk levels:
 #  alpha = linspace(0,1,num_trials);
@@ -70,7 +77,7 @@ end
 	 alpha*ones(m,1);
 	    zeros(m,1);];
 
-  # I do not have a reasonable replacement for this code:
+  #TODO: I do not have a reasonable replacement for this code:
   # P = polytope(A_Cvar, b_Cvar)
   # ext = extreme(P);
   # ext = ext(:,1:m)
@@ -124,13 +131,6 @@ end
 
   # Solve offline version of the problem
   # if infeasible, then don't continue
-
-
-  # I can cheat a little bit and remember the policies I've already solved.
-  # if I start from the same initial point, then because of the way noise
-  # is modeled, I can simply recall (rather than resolve) the previous point.
-  # I would want to store these realizations in a tree.
-  # This will really only help if num_trials is large.
 
   for trials = 1:num_trials
     # Solve off-line version of the problem:
