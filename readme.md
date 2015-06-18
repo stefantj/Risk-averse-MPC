@@ -21,13 +21,16 @@ The program will output a csv file with fields
 This data can be easily interpreted by running the plotter.m file in Matlab.
 
 # Verification of code
+Each function that calls the solver has an optional final argument that is a test-mode flag.
 
-There (will be) a suite of tests to verify that the code is correct.
+When the flag is set, then the function will print out diagnostics on each of the constraints.
+
+When testing positive (semi-)definiteness of a matrix, the minimum eigen value is returned. This should be within tolerance (typically 1e-5) of zero.
+
+When testing state dynamics, the 2-norm of the error is printed.
 
 # ToDos
-1. Highlight uncertain portions of the code
-2. Write a test suite
-	- Verify each constraint (positive definiteness etc)
-3. AFTER everything else clears, extend to constrained case
-4. AFTER everything else clears, extend to robust case
-
+1. Extend to constrained case
+2. Extend to robust case
+3. Extend to N=3,4,5
+4. Add different risk-polytopes

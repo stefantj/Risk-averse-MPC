@@ -22,7 +22,7 @@ using SCS
 #using Debug
 
 # Function that computs Q offline
-function MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c)
+function MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c, test_mode=0)
 
   # Infer problem size
   m   =  size(B_scen,1);    # Number of realizations
@@ -86,10 +86,10 @@ function MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c)
       b44 = -Q[i] + G[i] + G[i]';
 
       lmi_nrows = size(Q_diag,2) + size(b12,2) + size(b13,2) + size(b14,2);
-      lmi = hvcat((4,4,4,4), Q_diag, b12, b13, b14,
-                               b12', b22, b23, b24,
-	                       b13', b23', b33, b34,
-			       b14', b24', b34', b44)i;
+      lmi = [Q_diag b12 b13 b14;
+               b12' b22 b23 b24;
+	       b13' b23' b33 b34;
+	       b14' b24' b34' b44];
       lmi = lmi - tol*eye(lmi_nrows);
       cstr += lmi == Semidefinite(lmi_nrows);
   end
@@ -103,6 +103,42 @@ function MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c)
 
   problem = minimize(objective, cstr);
   solve!(problem,SCSSolver(verbose=false));
+
+  if(test_mode==1)
+    println("Tolerance for positive definite matrices is $tol");
+    [ println("emin(Q($i)) = ",eigmin(Q[i].value)) for i = 1:m]
+    for i = 1:m
+      Q_diag = [Q[i].value zeros(n_s,n_s);
+                zeros(n_s,n_s) Q[i].value];
+      for j = 3:m
+          Zi = zeros(n_s*(j-1), n_s);
+	  Q_diag = [Q_diag Zi;
+	               Zi' Q[i].value]
+      end
+
+      b12 = zeros(m*n_s,n_i);
+      b13 = zeros(m*n_s,n_s);
+      b22 = R_inv;
+      b23 = zeros(n_i,n_s);
+      b24 = -(Y[i].value)
+      b33 = eye(n_s);
+      b14 = -0.5*(A_scen[1]*(G[1].value) + B_scen[1]*(Y[1].value));
+      for j = 2:m
+        b14 = vcat(b14, -0.5*(A_scen[j]*(G[j].value) + B_scen[j]*(Y[j].value)));
+      end
+
+      b34 = -Q_c_sqrt*(G[i].value);
+      b44 = -Q[i].value + G[i].value + (G[i].value)';
+
+      lmi_nrows = size(Q_diag,2) + size(b12,2) + size(b13,2) + size(b14,2);
+      lmi = [Q_diag b12 b13 b14;
+               b12' b22 b23 b24;
+	       b13' b23' b33 b34;
+	       b14' b24' b34' b44];
+      println("emin(lmi_$i) = ", eigmin(lmi));
+    end
+  end
+
   return Q, problem
 end
 
@@ -124,7 +160,7 @@ end
 # E_c: Expected cost TODO: Implement this
 # pr:  Convex problem instance
 #
-function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
+function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q, test_mode=0)
 
   # Infer problem size
   m   =  size(B_scen,1);    # Number of realizations
@@ -191,11 +227,23 @@ function MPC_look_2(A_scen,B_scen,xi_pts,p,R_c,Q_c,X_init, Q)
   MS = r0 + MS/alpha;
 
   cstr += gamma1 == quad_form(U,R_c) + MS; #Note that this does not include the initial cost X_init'*Q_C*X_init
+  # I don't think this does anything TODO: Fix?
   cstr += expected_cost <= max_risk;
 
   # Time to solve the problem!
   problem = minimize(gamma1,cstr);
   solve!(problem, SCSSolver(verbose=false))
+
+
+  if(test_mode == 1)
+    println("Tolerance for positive definite matrices is $tol")
+
+    println("Error in dynamics:")
+    [println("X1_$i1: ", norm(X1[i1].value - (A_scen[i1]*X_init + B_scen[i1]*U.value))) for i1=1:m]
+    [println("X2_$i1$i2:", norm(X2[i1,i2].value-( A_scen[i2]*X1[i1].value + B_scen[i2]*U1[i1].value))) for i1=1:m,i2=1:m]
+    [println("emin(lmi_f$i1$i2): ", eigmin( [gamma2[i1,i2].value X2[i1,i2].value'; X2[i1,i2].value Q[i2].value] )) for i2=1:m, i1=1:m]
+    println("Risk-adjusted cost: ", gamma1.value);
+  end
 
   return U.value, expected_cost, problem 
 end

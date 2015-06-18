@@ -134,7 +134,7 @@ end
 
   for trials = 1:num_trials
     # Solve off-line version of the problem:
-    Q_offline, pr = MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c);
+    Q_offline, pr = MPC_offline(A_scen, B_scen, xi_pts, p, R_c, Q_c, 1);
     if(pr.status == :Infeasible)
       println("Infeasible start - unable to solve offline problem.");
       continue
@@ -144,7 +144,7 @@ end
       println("Trial ", trials, ", iterate ", iter);
       # For now, only bother with N = 2
 
-      @time ui, Ec,pr = MPC_look_2(A_scen, B_scen, xi_pts, p, R_c, Q_c, X_traj[trials,iter], Q_offline)
+      @time ui, Ec,pr = MPC_look_2(A_scen, B_scen, xi_pts, p, R_c, Q_c, X_traj[trials,iter], Q_offline, 1)
       
       feas_status = 0;
       if(pr.status == :Infeasible)
@@ -167,9 +167,9 @@ end
 	  # Print data to file
 	  write_data("data.csv", iter, feas_status, r_i, X_traj[trials,iter], ui,0, cost_i[1], pr.optval, 0); 
 	 
-	  if(norm(X_traj[trials,iter+1]) < 1e-4)
+	  if(norm(X_traj[trials,iter+1]) < 1e-8)
              println("Found the origin! (norm = ", norm(X_traj[trials,iter+1]), ")");
-	     continue
+	     break;
           end
       end
     end
