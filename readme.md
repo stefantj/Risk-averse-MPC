@@ -28,7 +28,7 @@ When the flag is set, then the function will print out diagnostics on each of th
 When testing positive (semi-)definiteness of a matrix, the minimum eigen value is returned. This should be within tolerance (typically 1e-5) of zero.
 
 When testing state dynamics, the 2-norm of the error is printed.
-
+=======
 # ToDos
 1. Extend to constrained case
 2. Extend to robust case
