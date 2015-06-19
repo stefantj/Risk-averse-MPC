@@ -163,6 +163,8 @@ end
           r_i = rand_indices[(trials-1)*max_iters + iter];
           X_traj[trials,iter+1] = A_scen[r_i]*X_traj[trials,iter] + B_scen[r_i]*ui;
           cost_i = X_traj[trials,iter+1]'*Q_c*X_traj[trials,iter+1] + ui'*R_c*ui;
+	  # Compute risk TODO
+	  #          [risk += p[i]*( ) for i=1:m]
 
 	  # Print data to file
 	  write_data("data.csv", iter, feas_status, r_i, X_traj[trials,iter], ui,0, cost_i[1], pr.optval, 0); 
